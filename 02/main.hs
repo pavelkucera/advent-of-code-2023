@@ -35,6 +35,12 @@ isValidGame b g = allValid rounds
     rounds = gameRounds g
     isValidRound round = M.isSubmapOfBy (<=) round b
 
+minPossibleBag :: Game -> Bag
+minPossibleBag = foldr (M.unionWith max) M.empty . gameRounds
+
+bagPower :: Bag -> Int
+bagPower = M.foldr (*) 1
+
 -- Use a parser and "eat" following whitespace
 lexeme :: Input a -> Input a
 lexeme p = p <* space
@@ -98,5 +104,11 @@ main = do
   games <- parseGames stdin
 
   let validGames = filter (isValidGame bagWithCubes) games
-  let idsNumber = foldr (\g n -> gameId g + n) 0 validGames
-  putStr . show $ idsNumber
+  let validGamesIds = map gameId validGames
+  let validGamesIdsSum = sum validGamesIds
+  putStrLn . ("Sum of IDs of possible games: " ++) . show $ validGamesIdsSum
+
+  let minPossibleBags = map minPossibleBag games
+  let powers = map bagPower minPossibleBags
+  let powersSum = sum powers
+  putStrLn . ("Sum of min possible bag powers: " ++) . show $ powersSum
