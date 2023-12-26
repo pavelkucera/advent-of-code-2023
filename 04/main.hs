@@ -37,9 +37,10 @@ cardCount cs = length cs + copiesWon cs
 copiesWon cs = winningsOf cs
   where
     winningsOf [] = 0
-    winningsOf cs' =
-      let copies = concatMap (cardsWonBy cs) cs'
-       in length copies + winningsOf copies
+    winningsOf (c : cs') =
+      let winningCount = length . filter (`elem` cardWinningNumbers c) $ cardNumbers c
+          copies = take winningCount cs'
+       in winningCount + winningsOf copies + winningsOf cs'
 
 -- returns direct winnings of a card
 cardsWonBy cs c = take winningCount followingCards
