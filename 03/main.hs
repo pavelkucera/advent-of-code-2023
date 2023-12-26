@@ -10,22 +10,18 @@ import Debug.Trace
 import Text.Megaparsec
 import Text.Megaparsec.Char
 
+-- does not implement part two, as the data structure I chose would not be great
+
 data EngineSymbol
   = Number Int
   | Period
-  | Symbol
+  | Symbol (Maybe Char)
   deriving (Eq, Show)
 
 type EngineSchematics = IntMap (IntMap EngineSymbol)
 
 type Input = Parsec Void String
 
--- can parse the input
--- storing each number at all the positions of its digits
--- need to look at the numbers and see if they neighbour a symbol
---   watch out: this will differ per position of digit
--- and then I need to collapse
---
 sumPartNumbers :: EngineSchematics -> Int
 sumPartNumbers = IM.foldr (\r s -> sum r + s) 0 . collectPartNumbers
 
@@ -49,7 +45,10 @@ collapsePartNumbers = mapMaybe (number . fst) . filter snd . IM.foldr' combine [
         else symbol : previous : tail
 
 neighboursSymbol :: EngineSchematics -> (Int, Int) -> Bool
-neighboursSymbol s p = any (== Symbol) $ neighboursOf s p
+neighboursSymbol s p = any isSymbol $ neighboursOf s p
+  where
+    isSymbol (Symbol _) = True
+    isSymbol _ = False
 
 neighboursOf :: EngineSchematics -> (Int, Int) -> [EngineSymbol]
 neighboursOf s (x, y) = elementsAt neighbouringPositions
@@ -84,7 +83,8 @@ symbol :: Input EngineSymbol
 symbol =
   (some digitChar <&> Number . read)
     <|> (char '.' $> Period)
-    <|> (oneOf "$#-*+%&=/@" $> Symbol)
+    <|> (char '*' $> Symbol (Just '*'))
+    <|> (oneOf "$#-*+%&=/@" $> Symbol Nothing)
 
 parseSchematics :: String -> IO EngineSchematics
 parseSchematics stdin = do
