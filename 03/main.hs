@@ -25,12 +25,28 @@ type Input = Parsec Void String
 -- need to look at the numbers and see if they neighbour a symbol
 --   watch out: this will differ per position of digit
 -- and then I need to collapse
+--
+sumPartNumbers :: EngineSchematics -> Int
+sumPartNumbers = IM.foldr (\r s -> sum r + s) 0 . collectPartNumbers
 
-collectPartNumbers :: EngineSchematics -> [Int]
-collectPartNumbers s = undefined
+collectPartNumbers :: EngineSchematics -> IntMap [Int]
+collectPartNumbers s = IM.map collapsePartNumbers taggedSchematics
   where
-    -- numbers :: IntMap EngineSymbol -> [Int]
-    numbers = IM.mapWithKey $ \y -> curry $ neighboursSymbol s
+    taggedSchematics = IM.mapWithKey tag s
+    tag y = IM.mapWithKey (\x v -> (v, neighboursSymbol s (x, y)))
+
+-- Combines replicated part numbers into one, keeping their "is a neighbour of
+-- a symbol" tag and extracts the numbers from part numbers
+collapsePartNumbers :: IntMap (EngineSymbol, Bool) -> [Int]
+collapsePartNumbers = mapMaybe (number . fst) . filter snd . IM.foldr' combine []
+  where
+    number (Number n) = Just n
+    number _ = Nothing
+    combine symbol [] = [symbol]
+    combine symbol (previous : tail) =
+      if fst symbol == fst previous
+        then (fst symbol, snd symbol || snd previous) : tail
+        else symbol : previous : tail
 
 neighboursSymbol :: EngineSchematics -> (Int, Int) -> Bool
 neighboursSymbol s p = any (== Symbol) $ neighboursOf s p
@@ -42,7 +58,7 @@ neighboursOf s (x, y) = elementsAt neighbouringPositions
     elementsAt = mapMaybe (symbolAt s)
 
 symbolAt :: EngineSchematics -> (Int, Int) -> Maybe EngineSymbol
-symbolAt s (x, y) = IM.lookup x s >>= IM.lookup y
+symbolAt s (x, y) = IM.lookup y s >>= IM.lookup x
 
 numbered :: [a] -> IntMap a
 numbered = IM.fromAscList . zip [0 ..]
@@ -68,14 +84,17 @@ symbol :: Input EngineSymbol
 symbol =
   (some digitChar <&> Number . read)
     <|> (char '.' $> Period)
-    <|> (oneOf "$#-*" $> Symbol)
+    <|> (oneOf "$#-*+%&=/@" $> Symbol)
 
--- number :: Input Int
--- number = read <$> some digitChar
---
--- symbol :: Input Char
--- symbol = satisfy $ \c -> c /= '.' && isSymbol c
+parseSchematics :: String -> IO EngineSchematics
+parseSchematics stdin = do
+  case parse schematics "stdin" stdin of
+    Left e -> error . errorBundlePretty $ e
+    Right s -> pure s
 
 main :: IO ()
 main = do
-  putStrLn "Hello, World!"
+  stdin <- getContents
+  schematics <- parseSchematics stdin
+  let sumOfPartNumbers = sumPartNumbers schematics
+  print sumOfPartNumbers
