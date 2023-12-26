@@ -30,13 +30,16 @@ points (Card _ wns ns) = multiply . foldr coefficient [] . reverse $ filter (`el
     coefficient n [] = [1]
     coefficient _ ns = 2 : ns
 
--- returns all the original cards plus all the card
-cardsWon cs = concatMap (\original -> original : winningsOf [original]) cs
+-- Gives the count all cards, originals and copies
+cardCount cs = length cs + copiesWon cs
+
+-- Gives the number of copies won by the deck
+copiesWon cs = winningsOf cs
   where
-    winningsOf [] = []
+    winningsOf [] = 0
     winningsOf cs' =
       let copies = concatMap (cardsWonBy cs) cs'
-       in copies ++ winningsOf copies
+       in length copies + winningsOf copies
 
 -- returns direct winnings of a card
 cardsWonBy cs c = take winningCount followingCards
@@ -69,6 +72,7 @@ card = do
   where
     space = some (char ' ')
 
+-- parse full input, expecting end of file
 cards :: Input [LotteryCard]
 cards = do
   cs <- card `sepEndBy` eol
@@ -88,6 +92,6 @@ main = do
 
   let pointWinningsPerCard = map points cards
   let pointWinnings = sum pointWinningsPerCard
-  let cardWinnings = length . map cardId . cardsWon $ cards
+  let cardWinnings = cardCount cards
   print pointWinnings
   print cardWinnings
