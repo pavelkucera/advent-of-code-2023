@@ -30,6 +30,20 @@ points (Card _ wns ns) = multiply . foldr coefficient [] . reverse $ filter (`el
     coefficient n [] = [1]
     coefficient _ ns = 2 : ns
 
+-- returns all the original cards plus all the card
+cardsWon cs = concatMap (\original -> original : winningsOf [original]) cs
+  where
+    winningsOf [] = []
+    winningsOf cs' =
+      let copies = concatMap (cardsWonBy cs) cs'
+       in copies ++ winningsOf copies
+
+-- returns direct winnings of a card
+cardsWonBy cs c = take winningCount followingCards
+  where
+    winningCount = length . filter (`elem` cardWinningNumbers c) $ cardNumbers c
+    followingCards = drop (cardId c) cs
+
 -- Run a parser and "eat" any following whitespace
 lexeme :: Input a -> Input a
 lexeme p = p <* many space
@@ -72,6 +86,8 @@ main = do
   stdin <- getContents
   cards <- parseInput stdin
 
-  let winningsPerCard = map points cards
-  let winnings = sum winningsPerCard
-  print winnings
+  let pointWinningsPerCard = map points cards
+  let pointWinnings = sum pointWinningsPerCard
+  let cardWinnings = length . map cardId . cardsWon $ cards
+  print pointWinnings
+  print cardWinnings
