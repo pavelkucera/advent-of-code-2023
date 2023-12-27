@@ -19,12 +19,39 @@ type Input = Parsec Void String
 -- inclusive in its beginning, exclusive in its end
 type Interval = (Int, Int)
 
-transformInterval :: Interval -> Transformation -> ([Interval], [Interval])
-transformInterval interval (destinationStart, sourceStart, rangeLength) =
-  (map (bimap transformValue transformValue) intersection, remainder)
+main :: IO ()
+main = do
+  stdin <- getContents
+  almanac <- case parse almanacP "stdin" stdin of
+    Left e -> fail . errorBundlePretty $ e
+    Right a -> pure a
+
+  when (odd . length $ fst almanac) (fail "expecting an even number of seed numbers to define ranges")
+  print $ closestSeedLocation almanac
+  print $ closestSeedRangeLocation almanac
+
+-- Threads a single seed through the almanac
+closestSeedLocation :: Almanac -> Int
+closestSeedLocation (seeds, layers) = minimum locations
   where
-    (intersection, remainder) = interval `intersect` (sourceStart, sourceStart + rangeLength)
-    transformValue x = x - sourceStart + destinationStart
+    locations = map (transformSeed layers) seeds
+
+-- Threads seed intervals through the interval working on intervals rather than
+-- actual seed numbers to speed it up. Once we get to the result, any of
+-- intervals with the lowest beginning should be the overall "closest location"
+closestSeedRangeLocation :: Almanac -> Int
+closestSeedRangeLocation (seedsRanges, almanac) = minimum . map fst $ locations
+  where
+    locations = concatMap (`transformIntervalThroughAlmanac` almanac) (ranges seedsRanges)
+    -- assuming we check for even number of seed numbers
+    ranges [] = []
+    ranges (s : e : rs) = (s, s + e) : ranges rs
+
+transformIntervalThroughAlmanac :: Interval -> [[Transformation]] -> [Interval]
+transformIntervalThroughAlmanac i a =
+  foldl' combine [i] a
+  where
+    combine is a = concatMap (`transformIntervalThroughLayer` a) is
 
 transformIntervalThroughLayer :: Interval -> [Transformation] -> [Interval]
 transformIntervalThroughLayer interval layer =
@@ -36,11 +63,12 @@ transformIntervalThroughLayer interval layer =
       let (a, b) = unzip $ map (`transformInterval` t) toTransform
        in (concat a ++ transformed, concat b)
 
-transformIntervalThroughAlmanac :: Interval -> [[Transformation]] -> [Interval]
-transformIntervalThroughAlmanac i a =
-  foldl' combine [i] a
+transformInterval :: Interval -> Transformation -> ([Interval], [Interval])
+transformInterval interval (destinationStart, sourceStart, rangeLength) =
+  (map (bimap transformValue transformValue) intersection, remainder)
   where
-    combine is a = concatMap (`transformIntervalThroughLayer` a) is
+    (intersection, remainder) = interval `intersect` (sourceStart, sourceStart + rangeLength)
+    transformValue x = x - sourceStart + destinationStart
 
 -- Returns ([intersection between i1 and i2], [remainders of i1 that do not intersect i2]
 -- not quite beautiful
@@ -61,11 +89,11 @@ intersect i1@(b1, e1) i2@(b2, e2)
   -- i2 ends within i1 and begins outside
   | (e2 - 1) `inInterval` i1 = ([(b1, e2)], [(e2, e1)])
 
-isEmptyInterval :: Interval -> Bool
-isEmptyInterval (b, e) = e <= b
-
 inInterval :: Int -> Interval -> Bool
 inInterval x (b, e) = b <= x && x < e
+
+transformSeed ls s =
+  foldl' (flip transformThroughLayer) s ls
 
 transformInRange s (destStart, sourceStart, rangeLength) =
   if sourceStart <= s && s < sourceStart + rangeLength
@@ -76,26 +104,9 @@ transformThroughLayer ts s =
   case mapMaybe (transformInRange s) ts of
     [] -> s
     [s'] -> s'
+    -- stay on the safe side and error on "this should not happen" instead of
+    -- getting a non-exhaustive pattern
     _ -> error "Multiple transformations match the same value"
-
-transformSeed ls s =
-  foldl' (flip transformThroughLayer) s ls
-
-closestSeedLocation :: Almanac -> Int
-closestSeedLocation (seeds, layers) = minimum locations
-  where
-    locations = map (transformSeed layers) seeds
-
--- Threads seed intervals throug the interval working on intervals rather than
--- actual seed numbers to speed it up. Once we get to the result, any of
--- intervals with the lowest beginning should be the overall "closest location"
-closestSeedRangeLocation :: Almanac -> Int
-closestSeedRangeLocation (seedsRanges, almanac) = minimum . map fst $ locations
-  where
-    locations = concatMap (`transformIntervalThroughAlmanac` almanac) (ranges seedsRanges)
-    -- assuming we check for even number of seed numbers
-    ranges [] = []
-    ranges (s : e : rs) = (s, s + e) : ranges rs
 
 -- Run a parser and "eat" any following whitespace
 lexeme :: Input a -> Input a
@@ -139,14 +150,3 @@ mapBlockP = do
       sourceStart <- lexeme numberP
       rangeLength <- lexeme numberP
       pure (destinationStart, sourceStart, rangeLength)
-
-main :: IO ()
-main = do
-  stdin <- getContents
-  almanac <- case parse almanacP "stdin" stdin of
-    Left e -> fail . errorBundlePretty $ e
-    Right a -> pure a
-
-  when (length (fst almanac) `mod` 2 /= 0) (fail "expecting an even number of seed numbers to define ranges")
-  print $ closestSeedLocation almanac
-  print $ closestSeedRangeLocation almanac
