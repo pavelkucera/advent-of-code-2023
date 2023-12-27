@@ -1,6 +1,6 @@
 module Main where
 
-import Control.Monad (void)
+import Control.Monad (void, when)
 import Data.Char (isAlpha)
 import Data.List (foldl')
 import Data.Maybe
@@ -34,6 +34,15 @@ closestSeedLocation :: Almanac -> Int
 closestSeedLocation (seeds, layers) = minimum locations
   where
     locations = map (transformSeed layers) seeds
+
+closestSeedRangeLocation :: Almanac -> Int
+closestSeedRangeLocation (seedsRanges, layers) = minimum locations
+  where
+    locations = map (transformSeed layers) seeds
+    seeds = concatMap (uncurry enumFromTo) $ pairs seedsRanges
+    -- assuming we check for even number of seed numbers
+    pairs [] = []
+    pairs (s : e : rs) = (s, s + e - 1) : pairs rs
 
 -- Run a parser and "eat" any following whitespace
 lexeme :: Input a -> Input a
@@ -85,4 +94,6 @@ main = do
     Left e -> fail . errorBundlePretty $ e
     Right a -> pure a
 
+  when (length (fst almanac) `mod` 2 /= 0) (fail "expecting an even number of seed numbers to define ranges")
   print $ closestSeedLocation almanac
+  print $ closestSeedRangeLocation almanac
