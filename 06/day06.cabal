@@ -6,7 +6,7 @@ build-type:         Simple
 common warnings
     --ghc-options: -Wall -Wextra
 
-executable x05
+executable aoc
     import:           warnings
     main-is:          Main.hs
     -- other-modules:
