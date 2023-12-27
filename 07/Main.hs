@@ -2,6 +2,7 @@ module Main where
 
 import Data.Functor (($>))
 import Data.List
+import Data.Maybe
 import Data.Ord
 import Data.Void
 import Debug.Trace
@@ -13,7 +14,6 @@ data Card
   = Ace
   | King
   | Queen
-  | Jack
   | Ten
   | Nine
   | Eight
@@ -23,6 +23,7 @@ data Card
   | Four
   | Three
   | Two
+  | Joker
   deriving (Eq, Show)
 
 newtype Hand = Hand {getCards :: [Card]}
@@ -46,15 +47,35 @@ cardCounts (Hand cs) =
   where
     cards cs@(c : _) = [(c, length cs)]
 
+handType :: Hand -> HandType
 handType hand =
-  case sortOn Down . map snd $ cardCounts hand of
-    [5] -> FiveOfAKind
-    [4, 1] -> FourOfAKind
-    [3, 2] -> FullHouse
-    (3 : _) -> ThreeOfAKind
-    (2 : 2 : _) -> TwoPair
-    (2 : _) -> OnePair
-    _ -> HighCard
+  jokerAdjusted baseType jokerCount
+  where
+    counts = cardCounts hand
+    baseType =
+      case sortOn Down . map snd $ counts of
+        [5] -> FiveOfAKind
+        [4, 1] -> FourOfAKind
+        [3, 2] -> FullHouse
+        (3 : _) -> ThreeOfAKind
+        (2 : 2 : _) -> TwoPair
+        (2 : _) -> OnePair
+        _ -> HighCard
+    jokerCount = fromMaybe 0 (lookup Joker counts)
+    jokerAdjusted t c =
+      case (t, c) of
+        (FourOfAKind, 4) -> FiveOfAKind -- JJJJx -> xxxxx
+        (FourOfAKind, 1) -> FiveOfAKind -- Jxxxx -> xxxxx
+        (FullHouse, 3) -> FiveOfAKind -- JJJxx -> xxxxx
+        (FullHouse, 2) -> FiveOfAKind -- JJxxx -> xxxxx
+        (ThreeOfAKind, 3) -> FourOfAKind -- JJJxy -> xxxxy
+        (ThreeOfAKind, 1) -> FourOfAKind -- Jxxxy -> xxxxy
+        (TwoPair, 2) -> FourOfAKind -- JJxxy -> xxxxy
+        (TwoPair, 1) -> FullHouse -- Jxxyy -> xxxyy
+        (OnePair, 2) -> ThreeOfAKind -- JJxyz -> xxxyz
+        (OnePair, 1) -> ThreeOfAKind -- Jxxyz -> xxxyz
+        (HighCard, 1) -> OnePair -- Jabcd -> aabcd
+        _ -> t
 
 handWinnings :: [(Hand, Int)] -> [(Hand, Int)]
 handWinnings game =
@@ -85,6 +106,12 @@ gameP = do
       bid <- bidP
       pure (hand, bid)
 
+parseHand :: String -> IO Hand
+parseHand s =
+  case parse (handP <* eof) "stdin" s of
+    Left e -> fail . errorBundlePretty $ e
+    Right h -> pure h
+
 handP :: Input Hand
 handP = do
   c1 <- cardP
@@ -109,7 +136,7 @@ cardP =
       char '8' $> Eight,
       char '9' $> Nine,
       char 'T' $> Ten,
-      char 'J' $> Jack,
+      char 'J' $> Joker,
       char 'Q' $> Queen,
       char 'K' $> King,
       char 'A' $> Ace
@@ -121,7 +148,6 @@ instance Ord Card where
       n Ace = 14
       n King = 13
       n Queen = 12
-      n Jack = 11
       n Ten = 10
       n Nine = 9
       n Eight = 8
@@ -131,6 +157,7 @@ instance Ord Card where
       n Four = 4
       n Three = 3
       n Two = 2
+      n Joker = 1
 
 instance Ord HandType where
   compare ht1 ht2 = compare (n ht1) (n ht2)
