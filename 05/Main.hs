@@ -2,6 +2,7 @@ module Main where
 
 import Control.Monad (void)
 import Data.Char (isAlpha)
+import Data.List (foldl')
 import Data.Maybe
 import Data.Void
 import Text.Megaparsec
@@ -10,22 +11,29 @@ import Text.Megaparsec.Char (alphaNumChar, char, digitChar, eol, string)
 -- (destination start, source start, range length)
 type Transformation = (Int, Int, Int)
 
+type Almanac = ([Int], [[Transformation]])
+
 type Input = Parsec Void String
 
-transformInRange v (destStart, sourceStart, rangeLength) =
-  if sourceStart <= v && v < sourceStart + rangeLength
-    then Just $ v - sourceStart + destStart
+transformInRange s (destStart, sourceStart, rangeLength) =
+  if sourceStart <= s && s < sourceStart + rangeLength
+    then Just $ s - sourceStart + destStart
     else Nothing
 
 -- transform :: [Transformation] -> Int -> Int
-transformThroughLayer ts v =
-  case mapMaybe (transformInRange v) ts of
-    [] -> v
-    [v'] -> v'
+transformThroughLayer ts s =
+  case mapMaybe (transformInRange s) ts of
+    [] -> s
+    [s'] -> s'
     _ -> error "Multiple transformations match the same value"
 
-transform ls v =
-  foldl (flip transformThroughLayer) v ls
+transformSeed ls s =
+  foldl' (flip transformThroughLayer) s ls
+
+closestSeedLocation :: Almanac -> Int
+closestSeedLocation (seeds, layers) = minimum locations
+  where
+    locations = map (transformSeed layers) seeds
 
 -- Run a parser and "eat" any following whitespace
 lexeme :: Input a -> Input a
@@ -45,7 +53,7 @@ keyword s = lexeme $ do
 numberP :: Input Int
 numberP = read <$> some digitChar
 
-almanacP :: Input ([Int], [[Transformation]])
+almanacP :: Input Almanac
 almanacP = do
   keyword "seeds"
   symbol ":"
@@ -73,9 +81,8 @@ mapBlockP = do
 main :: IO ()
 main = do
   stdin <- getContents
-  case parse almanacP "stdin" stdin of
-    Left e -> error . errorBundlePretty $ e
-    Right (seeds, layers) -> do
-      let ls = map (transform layers) seeds
-          minL = minimum ls
-      print minL
+  almanac <- case parse almanacP "stdin" stdin of
+    Left e -> fail . errorBundlePretty $ e
+    Right a -> pure a
+
+  print $ closestSeedLocation almanac
