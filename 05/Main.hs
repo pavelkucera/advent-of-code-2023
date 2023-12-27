@@ -1,6 +1,7 @@
 module Main where
 
 import Control.Monad (void, when)
+import Data.Bifunctor (bimap)
 import Data.Char (isAlpha)
 import Data.List (foldl')
 import Data.Maybe
@@ -15,12 +16,62 @@ type Almanac = ([Int], [[Transformation]])
 
 type Input = Parsec Void String
 
+-- inclusive in its beginning, exclusive in its end
+type Interval = (Int, Int)
+
+transformInterval :: Interval -> Transformation -> ([Interval], [Interval])
+transformInterval interval (destinationStart, sourceStart, rangeLength) =
+  (map (bimap transformValue transformValue) intersection, remainder)
+  where
+    (intersection, remainder) = interval `intersect` (sourceStart, sourceStart + rangeLength)
+    transformValue x = x - sourceStart + destinationStart
+
+transformIntervalThroughLayer :: Interval -> [Transformation] -> [Interval]
+transformIntervalThroughLayer interval layer =
+  transformed ++ untouched
+  where
+    (transformed, untouched) = foldl' combine ([], [interval]) layer
+    combine :: ([Interval], [Interval]) -> Transformation -> ([Interval], [Interval])
+    combine (transformed, toTransform) t =
+      let (a, b) = unzip $ map (`transformInterval` t) toTransform
+       in (concat a ++ transformed, concat b)
+
+transformIntervalThroughAlmanac :: Interval -> [[Transformation]] -> [Interval]
+transformIntervalThroughAlmanac i a =
+  foldl' combine [i] a
+  where
+    combine is a = concatMap (`transformIntervalThroughLayer` a) is
+
+-- Returns ([intersection between i1 and i2], [remainders of i1 that do not intersect i2]
+-- not quite beautiful
+intersect :: Interval -> Interval -> ([Interval], [Interval])
+intersect i1@(b1, e1) i2@(b2, e2)
+  -- disjoint intervals
+  | e1 <= b2 || e2 <= b1 = ([], [i1])
+  -- i1 fully within i2
+  | b1 `inInterval` i2 && (e1 - 1) `inInterval` i2 = ([i1], [])
+  -- i1 beings within i2 and ends outside
+  | b1 `inInterval` i2 = ([(b1, e2)], [(e2, e1)])
+  -- i1 ends within i2 and starts outside
+  | (e1 - 1) `inInterval` i2 = ([(b2, e1)], [(b1, b2)])
+  -- i2 fully within i1
+  | b2 `inInterval` i1 && (e2 - 1) `inInterval` i1 = ([i2], [(b1, b2), (e2, e1)])
+  -- i2 begins within i1 and ends outside
+  | b2 `inInterval` i1 = ([(b2, e1)], [(b1, b2)])
+  -- i2 ends within i1 and begins outside
+  | (e2 - 1) `inInterval` i1 = ([(b1, e2)], [(e2, e1)])
+
+isEmptyInterval :: Interval -> Bool
+isEmptyInterval (b, e) = e <= b
+
+inInterval :: Int -> Interval -> Bool
+inInterval x (b, e) = b <= x && x < e
+
 transformInRange s (destStart, sourceStart, rangeLength) =
   if sourceStart <= s && s < sourceStart + rangeLength
     then Just $ s - sourceStart + destStart
     else Nothing
 
--- transform :: [Transformation] -> Int -> Int
 transformThroughLayer ts s =
   case mapMaybe (transformInRange s) ts of
     [] -> s
@@ -35,14 +86,16 @@ closestSeedLocation (seeds, layers) = minimum locations
   where
     locations = map (transformSeed layers) seeds
 
+-- Threads seed intervals throug the interval working on intervals rather than
+-- actual seed numbers to speed it up. Once we get to the result, any of
+-- intervals with the lowest beginning should be the overall "closest location"
 closestSeedRangeLocation :: Almanac -> Int
-closestSeedRangeLocation (seedsRanges, layers) = minimum locations
+closestSeedRangeLocation (seedsRanges, almanac) = minimum . map fst $ locations
   where
-    locations = map (transformSeed layers) seeds
-    seeds = concatMap (uncurry enumFromTo) $ pairs seedsRanges
+    locations = concatMap (`transformIntervalThroughAlmanac` almanac) (ranges seedsRanges)
     -- assuming we check for even number of seed numbers
-    pairs [] = []
-    pairs (s : e : rs) = (s, s + e - 1) : pairs rs
+    ranges [] = []
+    ranges (s : e : rs) = (s, s + e) : ranges rs
 
 -- Run a parser and "eat" any following whitespace
 lexeme :: Input a -> Input a
