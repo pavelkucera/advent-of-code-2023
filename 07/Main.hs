@@ -49,19 +49,20 @@ cardCounts (Hand cs) =
 
 handType :: Hand -> HandType
 handType hand =
-  jokerAdjusted baseType jokerCount
+  case sortOn Down . map snd $ cardCounts hand of
+    [5] -> FiveOfAKind
+    [4, 1] -> FourOfAKind
+    [3, 2] -> FullHouse
+    (3 : _) -> ThreeOfAKind
+    (2 : 2 : _) -> TwoPair
+    (2 : _) -> OnePair
+    _ -> HighCard
+
+handTypeWithJokers :: Hand -> HandType
+handTypeWithJokers hand =
+  jokerAdjusted (handType hand) jokerCount
   where
-    counts = cardCounts hand
-    baseType =
-      case sortOn Down . map snd $ counts of
-        [5] -> FiveOfAKind
-        [4, 1] -> FourOfAKind
-        [3, 2] -> FullHouse
-        (3 : _) -> ThreeOfAKind
-        (2 : 2 : _) -> TwoPair
-        (2 : _) -> OnePair
-        _ -> HighCard
-    jokerCount = fromMaybe 0 (lookup Joker counts)
+    jokerCount = fromMaybe 0 . lookup Joker $ cardCounts hand
     jokerAdjusted t c =
       case (t, c) of
         (FourOfAKind, 4) -> FiveOfAKind -- JJJJx -> xxxxx
@@ -83,6 +84,7 @@ handWinnings game =
   where
     rankWinnings rank (hand, bid) = (hand, bid * rank)
 
+winnings :: [(Hand, Int)] -> Int
 winnings = sum . map snd . handWinnings
 
 main :: IO ()
@@ -94,7 +96,7 @@ main = do
 
   print $ winnings game
 
--- gameP :: Input [(Hand, Int)]
+gameP :: Input [(Hand, Int)]
 gameP = do
   game <- line `sepEndBy` eol
   eof
@@ -105,12 +107,6 @@ gameP = do
       char ' '
       bid <- bidP
       pure (hand, bid)
-
-parseHand :: String -> IO Hand
-parseHand s =
-  case parse (handP <* eof) "stdin" s of
-    Left e -> fail . errorBundlePretty $ e
-    Right h -> pure h
 
 handP :: Input Hand
 handP = do
