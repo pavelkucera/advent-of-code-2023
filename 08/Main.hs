@@ -18,6 +18,10 @@ type Input = Parsec Void String
 
 type NetworkMap = Map String (String, String)
 
+-- Part two seems to be a play at finding a cycle on the path between start
+-- nodes and end nodes. Solution would be to find those cycles and then find
+-- least common multiple.
+
 stepCount :: NetworkMap -> [Instruction] -> Int
 stepCount network baseInstructions = go "AAA" (cycle baseInstructions) 0
   where
