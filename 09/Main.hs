@@ -1,9 +1,8 @@
 module Main where
 
 differences :: [Int] -> [Int]
-differences [] = []
-differences [_] = []
-differences (x1 : x2 : xs) = x2 - x1 : differences (x2 : xs)
+differences xs =
+  zipWith subtract xs (tail xs)
 
 predictionLayers xs =
   collect xs []
