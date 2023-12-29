@@ -32,4 +32,6 @@ main = do
   stdin <- getContents
   let sequences = parse stdin
       predictions = map predict sequences
+      history = map (predict . reverse) sequences
   print $ sum predictions
+  print $ sum history
