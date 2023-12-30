@@ -2,6 +2,7 @@ module Main where
 
 import Data.Array
 import Data.Tuple
+import Debug.Trace
 
 type Grid a = Array (Int, Int) a
 
@@ -24,7 +25,7 @@ readGrid s = listArray ((1, 1), (height, width)) . concatMap (map r) $ splitInpu
     r '#' = Galaxy
 
 printGrid grid =
-  putStr $ unlines [[p $ grid ! (y, x) | x <- [1 .. maxX]] | y <- [1 .. maxY]]
+  unlines [[p $ grid ! (y, x) | x <- [1 .. maxX]] | y <- [1 .. maxY]]
   where
     (_, (maxY, maxX)) = bounds grid
     p Empty = '.'
@@ -33,8 +34,30 @@ printGrid grid =
 galaxies grid =
   filter ((== Galaxy) . snd) $ assocs grid
 
-distance (x1, y1) (x2, y2) =
-  sum . map abs $ [x1 - x2, y1 - y2]
+distance grid from to@(tx, ty) =
+  go from 0
+  where
+    go current counter
+      | current == to = counter
+      | otherwise =
+          let direction = nextDirection current
+              next = move current direction
+           in go next (counter + size current direction)
+    nextDirection (x, y) =
+      case (compare x tx, compare y ty) of
+        (_, LT) -> D
+        (_, GT) -> U
+        (LT, _) -> R
+        (GT, _) -> L
+    move (x, y) direction =
+      case direction of
+        U -> (x, y - 1)
+        D -> (x, y + 1)
+        L -> (x - 1, y)
+        R -> (x + 1, y)
+    size (x, y) direction
+      | direction `elem` [U, D] = if all (== Empty) (row grid y) then 1000000 else 1
+      | direction `elem` [R, L] = if all (== Empty) (column grid x) then 1000000 else 1
 
 pairs :: [a] -> [(a, a)]
 pairs [] = []
@@ -64,10 +87,10 @@ double grid =
         else [xs]
 
 row grid n =
-  map (grid !) indices
+  map (grid !) (indices)
   where
-    indices = [(n, x) | x <- [1 .. maxX]]
-    (_, (_, maxX)) = bounds grid
+    indices = [(n, x) | x <- [minX .. maxX]]
+    ((_, minX), (_, maxX)) = bounds grid
 
 column grid n =
   map (grid !) indices
@@ -78,8 +101,8 @@ column grid n =
 main :: IO ()
 main = do
   stdin <- getContents
-  let grid = expand $ readGrid stdin
-      gs = map fst $ galaxies grid
+  let grid = readGrid stdin
+      gs = map (swap . fst) $ galaxies grid
       galaxyPairs = pairs gs
-      distances = map (uncurry distance) galaxyPairs
+      distances = map (uncurry (distance grid)) galaxyPairs
   print $ sum distances
