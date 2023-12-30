@@ -11,7 +11,8 @@ executable aoc
     main-is:          Main.hs
     -- other-modules:
     -- other-extensions:
-    build-depends:    base ^>=4.17.2.1,
+    build-depends:    array,
+                      base ^>=4.17.2.1,
                       containers,
                       megaparsec
     hs-source-dirs:   .
