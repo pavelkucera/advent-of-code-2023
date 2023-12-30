@@ -32,7 +32,7 @@ printGrid grid =
     p Galaxy = '#'
 
 galaxies grid =
-  filter ((== Galaxy) . snd) $ assocs grid
+  map (swap . fst) . filter ((== Galaxy) . snd) $ assocs grid
 
 distance grid from to@(tx, ty) =
   go from 0
@@ -43,6 +43,10 @@ distance grid from to@(tx, ty) =
           let direction = nextDirection current
               next = move current direction
            in go next (counter + size current direction)
+    -- since we can only go up, left, right and down, and each of these step
+    -- have length 1, it does not matter if the path is a "direct" path
+    -- (which would normally be shorter) or a path along the rectangle defined
+    -- by the two points
     nextDirection (x, y) =
       case (compare x tx, compare y ty) of
         (_, LT) -> D
@@ -55,39 +59,23 @@ distance grid from to@(tx, ty) =
         D -> (x, y + 1)
         L -> (x - 1, y)
         R -> (x + 1, y)
-    size (x, y) direction
-      | direction `elem` [U, D] = if all (== Empty) (row grid y) then 1000000 else 1
-      | direction `elem` [R, L] = if all (== Empty) (column grid x) then 1000000 else 1
+    -- simulates expanding space
+    size (x, y) direction =
+      if all (== Empty) space
+        then 1000000 -- the "expand empty space" coefficient
+        else 1
+      where
+        space
+          | direction `elem` [U, D] = row grid y
+          | direction `elem` [L, R] = column grid x
 
 pairs :: [a] -> [(a, a)]
 pairs [] = []
 pairs (x1 : xs) =
   [(x1, x2) | x2 <- xs] ++ pairs xs
 
-transpose :: Grid a -> Grid a
-transpose grid =
-  array (newOrigin, newEnd) [((y, x), grid ! (x, y)) | y <- [1 .. fst newEnd], x <- [1 .. snd newEnd]]
-  where
-    (origin, end) = bounds grid
-    newOrigin = swap origin
-    newEnd = swap end
-
-expand =
-  transpose . double . transpose . double
-
-double grid =
-  listArray (origin, newEnd) $ concatMap concat doubledRows
-  where
-    doubledRows = map (doubleEmpty . row grid) [1 .. maxY]
-    (origin, (maxY, maxX)) = bounds grid
-    newEnd = (sum . map length $ doubledRows, maxX)
-    doubleEmpty xs =
-      if all (== Empty) xs
-        then replicate 2 xs
-        else [xs]
-
 row grid n =
-  map (grid !) (indices)
+  map (grid !) indices
   where
     indices = [(n, x) | x <- [minX .. maxX]]
     ((_, minX), (_, maxX)) = bounds grid
@@ -102,7 +90,6 @@ main :: IO ()
 main = do
   stdin <- getContents
   let grid = readGrid stdin
-      gs = map (swap . fst) $ galaxies grid
-      galaxyPairs = pairs gs
+      galaxyPairs = pairs $ galaxies grid
       distances = map (uncurry (distance grid)) galaxyPairs
   print $ sum distances
