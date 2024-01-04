@@ -104,7 +104,7 @@ countSolutions records =
   sum counts
   where
     counts = evalState (traverse traverseRecord records) M.empty
-    traverseRecord (record, count) = solve (counts, Operational, record)
+    traverseRecord (record, recordCounts) = solve (recordCounts, Operational, record)
 
 main :: IO ()
 main = do
