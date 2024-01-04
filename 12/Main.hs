@@ -84,6 +84,8 @@ solve context = do
     -- Encountering an operational spring right after a group of damaged
     -- springs ended; we can continue as we correctly found a group
     go (0 : cs, _, Operational : springs) = solve (cs, Operational, springs)
+    -- Arriving to zero on counts while encountering a damaged spring is an
+    -- state
     go (0 : cs, _, Damaged : springs) = pure 0
     -- Encountered a damaged, lower the current count and continue on the rest
     go (c : cs, _, Damaged : springs) = solve (c - 1 : cs, Damaged, springs)
