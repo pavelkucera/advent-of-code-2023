@@ -30,33 +30,26 @@ summarize grid isMirrorLineAfterRow isMirrorLineAfterColumn =
         then c
         else 0
 
+-- Counts number of smudges if the mirror line is right after row r
 mirrorLineAfterRowSmudgeCount :: (Eq a) => Grid a -> Int -> Int
 mirrorLineAfterRowSmudgeCount grid r =
   sum $ map rowsSmudgeCount shouldMirrorPairs
   where
     ((minR, minC), (maxR, maxC)) = bounds grid
-    shouldMirrorPairs = [(n, r + 1 - (n - r)) | n <- [r + 1 .. maxR]]
-    rowsSmudgeCount (r1, r2)
-      -- if either of the rows are outside of the grid, the pair matches
-      -- automatically
-      | not $ all (inRange (minR, maxR)) [r1, r2] = 0
-      -- otherwise all the corresponding values must match
-      | otherwise =
-          length . filter not $ [grid ! (r1, x) == grid ! (r2, x) | x <- [minC .. maxC]]
+    shouldMirrorPairs = filter inGrid [(n, r + 1 - (n - r)) | n <- [r + 1 .. maxR]]
+    inGrid (r1, r2) = all (inRange (minR, maxR)) [r1, r2]
+    rowsSmudgeCount (r1, r2) =
+      length . filter not $ [grid ! (r1, x) == grid ! (r2, x) | x <- [minC .. maxC]]
 
 mirrorLineAfterColumnSmudgeCount :: (Eq a) => Grid a -> Int -> Int
 mirrorLineAfterColumnSmudgeCount grid c =
   sum $ map columnSmudgeCount shouldMirrorPairs
   where
     ((minR, minC), (maxR, maxC)) = bounds grid
-    shouldMirrorPairs = [(n, c + 1 - (n - c)) | n <- [c + 1 .. maxC]]
-    columnSmudgeCount (c1, c2)
-      -- if either of the rows are outside of the grid, the pair matches
-      -- automatically
-      | not $ all (inRange (minC, maxC)) [c1, c2] = 0
-      -- otherwise all the corresponding values must match
-      | otherwise =
-          length . filter not $ [grid ! (r, c1) == grid ! (r, c2) | r <- [minR .. maxR]]
+    shouldMirrorPairs = filter inGrid [(n, c + 1 - (n - c)) | n <- [c + 1 .. maxC]]
+    inGrid (c1, c2) = all (inRange (minC, maxC)) [c1, c2]
+    columnSmudgeCount (c1, c2) =
+      length . filter not $ [grid ! (r, c1) == grid ! (r, c2) | r <- [minR .. maxR]]
 
 -- Reads a single pattern into a terrain grid
 readPattern :: String -> Grid Terrain
@@ -93,5 +86,6 @@ main = do
   print summary1
   print summary2
   where
-    summarize1 grid = summarize grid (\g r -> mirrorLineAfterRowSmudgeCount g r == 0) (\g c -> mirrorLineAfterColumnSmudgeCount g c == 0)
-    summarize2 grid = summarize grid (\g r -> mirrorLineAfterRowSmudgeCount g r == 1) (\g c -> mirrorLineAfterColumnSmudgeCount g c == 1)
+    smudgeCountEquals f c grid n = f grid n == c
+    summarize1 grid = summarize grid (smudgeCountEquals mirrorLineAfterRowSmudgeCount 0) (smudgeCountEquals mirrorLineAfterColumnSmudgeCount 0)
+    summarize2 grid = summarize grid (smudgeCountEquals mirrorLineAfterRowSmudgeCount 1) (smudgeCountEquals mirrorLineAfterColumnSmudgeCount 1)
