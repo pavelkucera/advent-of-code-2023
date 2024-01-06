@@ -2,6 +2,7 @@
 
 module Main where
 
+import Data.Array
 import Data.List
 
 data ReflectorDishRock
@@ -10,44 +11,52 @@ data ReflectorDishRock
   | Empty
   deriving (Eq)
 
+type Grid a = Array (Int, Int) a
+
+type Dish = Grid ReflectorDishRock
+
 instance Show ReflectorDishRock where
   show RoundRock = "O"
   show CubeRock = "#"
   show Empty = "."
 
-type ReflectorDish = [[ReflectorDishRock]]
-
-readGrid :: String -> ReflectorDish
+readGrid :: String -> Dish
 readGrid input =
-  map (map rock) $ lines input
+  array ((1, 1), (rows, columns)) $ concat values
   where
+    values = zipWith (\r line -> zip [(r, c) | c <- [1 ..]] (map rock line)) [1 ..] (lines input)
+    rows = length values
+    columns = length . head $ values
     rock '.' = Empty
     rock '#' = CubeRock
     rock 'O' = RoundRock
 
-printGrid :: ReflectorDish -> String
-printGrid = intercalate "\n" . map (concatMap show)
-
-tiltNorth :: ReflectorDish -> ReflectorDish
+tiltNorth :: Dish -> Dish
 tiltNorth grid =
-  if grid == tilt grid
+  if grid == tiltedGrid
     then grid
-    else tiltNorth $ tilt grid
+    else tiltNorth tiltedGrid
   where
-    tilt = foldr slide []
-    slide above [] = [above]
-    slide above (below : layers) =
-      let (tiltedAbove, tiltedBelow) = unzip $ zipWith slideRock above below
-       in tiltedAbove : tiltedBelow : layers
-    slideRock Empty RoundRock = (RoundRock, Empty)
-    slideRock above below = (above, below)
+    tiltedGrid = foldr slide grid $ indices grid
+    ((minR, minC), (maxR, maxC)) = bounds grid
+    slide :: (Int, Int) -> Dish -> Dish
+    slide position g =
+      case (g ! position, g ! below position) of
+        (Empty, RoundRock) -> g // [(position, RoundRock), (below position, Empty)]
+        _ -> g
+    below (r, c) = withinBounds (r + 1, c)
+    withinBounds (r, c) = (withinRange (minR, maxR) r, withinRange (minC, maxC) c)
+    withinRange (rangeMin, rangeMax) value = max rangeMin (min value rangeMax)
 
-calculateLoad :: ReflectorDish -> Int
+calculateLoad :: Dish -> Int
 calculateLoad grid =
-  sum $ zipWith load (reverse roundRocks) [1 ..]
+  foldr load 0 (indices grid)
   where
-    roundRocks = map (filter (== RoundRock)) grid
-    load layer n = sum $ map (const n) layer
+    ((minR, minC), (maxR, maxC)) = bounds grid
+    load index@(row, _) counter =
+      counter + case grid ! index of
+        RoundRock -> maxR - (row - minR)
+        _ -> 0
 
 main :: IO ()
 main = do
