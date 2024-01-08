@@ -61,8 +61,8 @@ tilt grid direction =
       case direction of
         North -> (columns, rows, id)
         South -> (columns, reverse rows, id)
-        East -> (rows, columns, swap)
-        West -> (rows, reverse columns, swap)
+        East -> (rows, reverse columns, swap)
+        West -> (rows, columns, swap)
     -- Do the sliding by walking through every cell within a given block. When
     -- sliding within a column we go row by row. Outer block is then the column
     -- and inner block is a row. Vice versa for sliding within a row.
