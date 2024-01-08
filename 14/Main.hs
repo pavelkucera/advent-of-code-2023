@@ -43,8 +43,8 @@ printGrid grid =
   where
     ((minR, minC), (maxR, maxC)) = bounds grid
 
-tilt'' :: Dish -> Direction -> Dish
-tilt'' grid direction =
+tilt :: Dish -> Direction -> Dish
+tilt grid direction =
   -- Go through "outer blocks" and slide rocks within them; the notion of an
   -- "outer block" is either rows or columns of the grid, depending on the
   -- direction of the slide. For understanding, imagine it as "rows".
@@ -92,5 +92,5 @@ main :: IO ()
 main = do
   stdin <- getContents
   let grid = readGrid stdin
-      tilted = tilt'' grid North
+      tilted = tilt grid North
   print $ calculateLoad tilted
