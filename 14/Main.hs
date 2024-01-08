@@ -1,15 +1,21 @@
-{-# LANGUAGE FlexibleInstances #-}
+{-# LANGUAGE ImportQualifiedPost #-}
 
 module Main where
 
 import Data.Array
 import Data.List
+import Data.Map (Map)
+import Data.Map.Strict qualified as M
+import Data.Tuple
+import Debug.Trace
 
 data ReflectorDishRock
   = RoundRock
   | CubeRock
   | Empty
-  deriving (Eq)
+  deriving (Eq, Ord)
+
+data Direction = North | West | South | East deriving (Eq, Ord, Show)
 
 type Grid a = Array (Int, Int) a
 
@@ -31,22 +37,46 @@ readGrid input =
     rock '#' = CubeRock
     rock 'O' = RoundRock
 
-tiltNorth :: Dish -> Dish
-tiltNorth grid =
-  if grid == tiltedGrid
-    then grid
-    else tiltNorth tiltedGrid
+printGrid :: Dish -> String
+printGrid grid =
+  intercalate "\n" [concat [show (grid ! (r, c)) | c <- [minC .. maxC]] | r <- [minR .. maxR]]
   where
-    tiltedGrid = foldr slide grid $ indices grid
     ((minR, minC), (maxR, maxC)) = bounds grid
-    slide :: (Int, Int) -> Dish -> Dish
-    slide position g =
-      case (g ! position, g ! below position) of
-        (Empty, RoundRock) -> g // [(position, RoundRock), (below position, Empty)]
-        _ -> g
-    below (r, c) = withinBounds (r + 1, c)
-    withinBounds (r, c) = (withinRange (minR, maxR) r, withinRange (minC, maxC) c)
-    withinRange (rangeMin, rangeMax) value = max rangeMin (min value rangeMax)
+
+tilt'' :: Dish -> Direction -> Dish
+tilt'' grid direction =
+  -- Go through "outer blocks" and slide rocks within them; the notion of an
+  -- "outer block" is either rows or columns of the grid, depending on the
+  -- direction of the slide. For understanding, imagine it as "rows".
+  foldl slideWithinBlock grid outerBlocks
+  where
+    ((minR, minC), (maxR, maxC)) = bounds grid
+    columns = [minC .. maxC]
+    rows = [minR .. maxR]
+    -- Determine if we slide within rows or columns, and determine the
+    -- positioning function. When sliding within columns, the produced inner
+    -- and outer positions do not match how the Array is structured compared to
+    -- the "inner"/"outer" blocks and the position needs to be swapped.
+    (outerBlocks, innerBlocks, position) =
+      case direction of
+        North -> (columns, rows, id)
+        South -> (columns, reverse rows, id)
+        East -> (rows, columns, swap)
+        West -> (rows, reverse columns, swap)
+    -- Do the sliding by walking through every cell within a given block. When
+    -- sliding within a column we go row by row. Outer block is then the column
+    -- and inner block is a row. Vice versa for sliding within a row.
+    slideWithinBlock grid outerBlock =
+      fst $ foldl (slide outerBlock) (grid, head innerBlocks) (tail innerBlocks)
+    -- Slide, keeping the position of the last empty space within the
+    -- "innerBlock" part of the accumulator.
+    slide outerBlock (grid, innerBlock) nextInnerBlock =
+      let currentPosition = position (innerBlock, outerBlock)
+          nextPosition = position (nextInnerBlock, outerBlock)
+       in case (grid ! currentPosition, grid ! nextPosition) of
+            (Empty, RoundRock) -> (grid // [(currentPosition, RoundRock), (nextPosition, Empty)], innerBlock + signum (nextInnerBlock - innerBlock))
+            (Empty, Empty) -> (grid, innerBlock)
+            _ -> (grid, nextInnerBlock)
 
 calculateLoad :: Dish -> Int
 calculateLoad grid =
@@ -62,5 +92,5 @@ main :: IO ()
 main = do
   stdin <- getContents
   let grid = readGrid stdin
-      tilted = tiltNorth grid
+      tilted = tilt'' grid North
   print $ calculateLoad tilted
