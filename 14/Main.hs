@@ -78,6 +78,9 @@ tilt grid direction =
             (Empty, Empty) -> (grid, innerBlock)
             _ -> (grid, nextInnerBlock)
 
+spin grid n =
+  foldl tilt grid (take (4 * n) $ cycle [North, West, South, East])
+
 calculateLoad :: Dish -> Int
 calculateLoad grid =
   foldr load 0 (indices grid)
@@ -93,4 +96,8 @@ main = do
   stdin <- getContents
   let grid = readGrid stdin
       tilted = tilt grid North
+      spun1 = spin grid 3
   print $ calculateLoad tilted
+  putStrLn . printGrid $ tilted
+  putStrLn ""
+  putStrLn . printGrid $ spun1
