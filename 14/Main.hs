@@ -67,7 +67,7 @@ tilt grid direction =
     -- sliding within a column we go row by row. Outer block is then the column
     -- and inner block is a row. Vice versa for sliding within a row.
     slideWithinBlock grid outerBlock =
-      fst $ foldl (slide outerBlock) (grid, head innerBlocks) (tail innerBlocks)
+      fst $ foldl' (slide outerBlock) (grid, head innerBlocks) (tail innerBlocks)
     -- Slide, keeping the position of the last empty space within the
     -- "innerBlock" part of the accumulator.
     slide outerBlock (grid, innerBlock) nextInnerBlock =
@@ -78,12 +78,22 @@ tilt grid direction =
             (Empty, Empty) -> (grid, innerBlock)
             _ -> (grid, nextInnerBlock)
 
+spin :: Dish -> Int -> Dish
 spin grid n =
-  foldl tilt grid (take (4 * n) $ cycle [North, West, South, East])
+  go M.empty grid n
+  where
+    go cache grid 0 = grid
+    go cache grid n =
+      case M.lookup grid cache of
+        Just seenAt ->
+          go M.empty grid (n `mod` (seenAt - n))
+        Nothing ->
+          go (M.insert grid n cache) (spinCycle grid) (n - 1)
+    spinCycle grid = foldl' tilt grid [North, West, South, East]
 
 calculateLoad :: Dish -> Int
 calculateLoad grid =
-  foldr load 0 (indices grid)
+  foldl' (flip load) 0 (indices grid)
   where
     ((minR, minC), (maxR, maxC)) = bounds grid
     load index@(row, _) counter =
@@ -96,8 +106,6 @@ main = do
   stdin <- getContents
   let grid = readGrid stdin
       tilted = tilt grid North
-      spun1 = spin grid 3
+      spun1 = spin grid 1000000000
   print $ calculateLoad tilted
-  putStrLn . printGrid $ tilted
-  putStrLn ""
-  putStrLn . printGrid $ spun1
+  print $ calculateLoad spun1
